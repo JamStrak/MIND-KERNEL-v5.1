@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+    <title>MIND KERNEL v5.1 TEST</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --term-green: #33ff33;
+            --term-dim: #1a5c1a;
+            --term-orange: #ffb600;
+            --term-red: #ff4444;
+            --term-red-bg: rgba(255, 68, 68, 0.1);
+            --score-1: #ff3333; --score-2: #ff8800; --score-3: #ffff00; --score-4: #99ff33; --score-5: #00ff00;
+            --cyan: #00ffff;
+            --cyan-dim: rgba(0, 255, 255, 0.1);
+            --font-main: 'Courier New', Courier, monospace;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--term-green);
+            font-family: var(--font-main);
+            margin: 0; padding: 0; padding-bottom: 120px;
+            font-size: 14px; overflow-x: hidden;
+        }
+
+        /* CRT SCANLINE EFFECT */
+        .crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%; pointer-events: none; z-index: 9999;
+        }
+        
+        .container { max-width: 700px; margin: 0 auto; padding: 15px; position: relative; z-index: 1; }
+        
+        /* HEADER */
+        header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid var(--term-green); padding-bottom: 10px; margin-bottom: 20px; }
+        .brand { font-size: 1.2em; font-weight: bold; text-shadow: 0 0 5px var(--term-green); letter-spacing: 1px; }
+        .lang-switch { cursor: pointer; font-size: 0.8em; border: 1px solid var(--term-green); padding: 2px 6px; opacity: 0.8; display:inline-block;}
+        
+        /* TYPOGRAPHY & INPUTS */
+        h2 { font-size: 1rem; border-left: 4px solid var(--term-green); padding-left: 10px; margin: 0 0 15px 0; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .btn {
+            background: rgba(0, 20, 0, 0.6); color: var(--term-green); border: 1px solid var(--term-green); padding: 12px;
+            font-family: inherit; font-weight: bold; text-transform: uppercase; cursor: pointer; width: 100%; transition: all 0.1s; margin-top: 10px; letter-spacing: 1px;
+        }
+        .btn:active { transform: scale(0.98); background: var(--term-green); color: #000; }
+        .btn-danger { border-color: var(--term-red); color: var(--term-red); }
+        .btn-danger:active { background: var(--term-red); color: #fff; }
+        .btn-small { width: auto; padding: 5px 10px; font-size: 0.8em; display: inline-block; margin: 0; }
+
+        .input-group { margin-bottom: 18px; }
+        .input-label { display: block; color: var(--cyan); font-size: 0.75em; margin-bottom: 6px; text-transform: uppercase; }
+        .terminal-input { width: 100%; background: #000; border: 1px solid #444; color: #fff; padding: 12px; font-family: inherit; font-size: 16px; border-radius: 0; transition: border-color 0.3s; }
+        .terminal-input:focus { border-color: var(--term-green); }
+
+        /* CARDS */
+        .card { background: rgba(20, 20, 20, 0.6); border: 1px solid #333; padding: 15px; margin-bottom: 20px; position: relative; }
+        .card.active-exp { border-left: 3px solid var(--term-orange); }
+        .card.truth { border-left: 3px solid var(--cyan); background: rgba(0,20,20,0.3); }
+        .card.fallacy { border-left: 3px solid var(--term-red); border-top: 1px solid #300; background: rgba(20,0,0,0.3); }
+
+        /* BIT GRID */
+        .bit-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin: 15px 0; }
+        .bit { 
+            aspect-ratio: 1; border: 1px solid #333; background: #0a0a0a; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 0.8em; color: #444; font-weight:bold; cursor: default; transition: all 0.2s;
+        }
+        /* States */
+        .bit.future { border: 1px dotted #222; color: #222; }
+        .bit.missed { border: 1px dashed #666; cursor: pointer; color: #666; }
+        .bit.missed:hover { border-color: var(--term-orange); color: var(--term-orange); }
+        
+        .bit.today-empty { border: 1px solid #fff; animation: pulse 1.5s infinite; cursor: pointer; color: #fff; background: #111; }
+        
+        .bit.done { border: none; color: #000; cursor: pointer; }
+        .bit.s1 { background: var(--score-1); box-shadow: 0 0 5px var(--score-1); }
+        .bit.s2 { background: var(--score-2); box-shadow: 0 0 5px var(--score-2); }
+        .bit.s3 { background: var(--score-3); box-shadow: 0 0 5px var(--score-3); }
+        .bit.s4 { background: var(--score-4); box-shadow: 0 0 5px var(--score-4); }
+        .bit.s5 { background: var(--score-5); box-shadow: 0 0 8px var(--score-5); }
+        
+        @keyframes pulse { 0% {box-shadow:0 0 0 #fff;} 50% {box-shadow:0 0 8px #fff;} 100% {box-shadow:0 0 0 #fff;} }
+
+        /* TABS */
+        .kernel-tabs { display: flex; border-bottom: 1px solid #333; margin-bottom: 20px; }
+        .k-tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; color: #555; border-bottom: 2px solid transparent; font-size: 0.9em; }
+        .k-tab.active.t-true { color: var(--cyan); border-color: var(--cyan); background: linear-gradient(to top, var(--cyan-dim), transparent); }
+        .k-tab.active.t-false { color: var(--term-red); border-color: var(--term-red); background: linear-gradient(to top, var(--term-red-bg), transparent); }
+
+        /* MODAL */
+        .modal-backdrop {
+            position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(2px);
+            z-index: 500; display: none; justify-content: center; align-items: center; padding: 20px;
+        }
+        .modal-backdrop.open { display: flex; }
+        .modal-content {
+            background: #050505; border: 1px solid var(--term-green); padding: 25px; width: 100%; max-width: 400px;
+            box-shadow: 0 0 30px rgba(51, 255, 51, 0.15); position: relative;
+        }
+        .modal-header { font-size: 1.1em; font-weight: bold; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+
+        /* RATING */
+        .rating-container { display: flex; gap: 5px; margin-bottom: 15px; }
+        .rate-btn { flex: 1; background: #000; border: 1px solid #444; color: #666; padding: 12px 0; cursor: pointer; font-weight: bold; font-size: 1.2em; transition: 0.2s; }
+        .rate-btn.selected { color: #000; border-color: transparent; transform: translateY(-2px); }
+        .rate-btn[data-val="1"].selected { background: var(--score-1); }
+        .rate-btn[data-val="2"].selected { background: var(--score-2); }
+        .rate-btn[data-val="3"].selected { background: var(--score-3); }
+        .rate-btn[data-val="4"].selected { background: var(--score-4); }
+        .rate-btn[data-val="5"].selected { background: var(--score-5); }
+
+        /* NAV & GM */
+        .nav-bar {
+            position: fixed; bottom: 0; left: 0; width: 100%; background: #000; border-top: 1px solid var(--term-green);
+            display: flex; justify-content: space-around; padding: 15px 0; z-index: 100; backdrop-filter: blur(10px);
+        }
+        .nav-btn { background: none; border: none; color: #555; font-family: var(--font-main); font-weight: bold; font-size: 1em; text-transform: uppercase; cursor: pointer; }
+        .nav-btn.active { color: var(--term-green); text-shadow: 0 0 8px var(--term-green); }
+        
+        #gm-console {
+            position: fixed; bottom: 60px; left: 0; width: 100%; background: #1a0505; 
+            border-top: 2px solid var(--term-red); z-index: 200; padding: 15px;
+            display: none; animation: slideUp 0.2s; box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+        }
+        #gm-console.open { display: block; }
+        .gm-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .gm-btn { background: #300; border: 1px solid var(--term-red); color: var(--term-red); padding: 8px; flex:1; cursor: pointer; font-family: inherit; font-size: 0.8em; }
+        .gm-btn.active { background: var(--term-red); color: #000; }
+
+        /* UTILS */
+        .section { display: none; animation: slideUp 0.3s ease-out; }
+        .section.active { display: block; }
+        @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        .hidden { display: none !important; }
+        .text-muted { color: #666; font-size: 0.8em; }
+        .text-cyan { color: var(--cyan); }
+        .text-red { color: var(--term-red); }
+        .text-orange { color: var(--term-orange); }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+
+        #toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #000; border: 1px solid var(--term-green); color: var(--term-green);
+            padding: 10px 20px; z-index: 10000; font-weight: bold; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div class="crt-overlay"></div>
+<div id="toast">SYSTEM ONLINE</div>
+
+<!-- INPUT MODAL -->
+<div id="input-modal" class="modal-backdrop">
+    <div class="modal-content">
+        <div class="modal-header flex-between">
+            <span id="modal-title">LOG ENTRY</span>
+            <span onclick="closeModal()" style="cursor:pointer; color:#555;">[ESC]</span>
+        </div>
+        <div style="margin-bottom:20px; color:#ccc; font-size:0.9em; line-height:1.4;" id="modal-action-text"></div>
+        
+        <div style="font-size:0.7em; color:var(--cyan); margin-bottom:5px;">EXPERIENCE RATING (1=WORST, 5=BEST)</div>
+        <div class="rating-container">
+            <button class="rate-btn" onclick="mSelRate(1)" data-val="1">1</button>
+            <button class="rate-btn" onclick="mSelRate(2)" data-val="2">2</button>
+            <button class="rate-btn" onclick="mSelRate(3)" data-val="3">3</button>
+            <button class="rate-btn" onclick="mSelRate(4)" data-val="4">4</button>
+            <button class="rate-btn" onclick="mSelRate(5)" data-val="5">5</button>
+        </div>
+        
+        <textarea id="m-note" class="terminal-input" rows="2" style="margin-bottom:15px;"></textarea>
+        
+        <div class="flex-between">
+            <button class="btn btn-danger btn-small" style="width:30%" onclick="closeModal()">CANCEL</button>
+            <button class="btn btn-small" style="width:65%" onclick="submitLog()">CONFIRM</button>
+        </div>
+    </div>
+</div>
+
+<!-- GM CONSOLE -->
+<div id="gm-console">
+    <div class="flex-between" style="color:var(--term-red); font-weight:bold; margin-bottom:10px; border-bottom:1px solid #500; padding-bottom:5px;">
+        <span>>> GM CONTROLS (v5.1)</span>
+        <span onclick="toggleGM()" style="cursor:pointer">[X]</span>
+    </div>
+    <div class="gm-row">
+        <button class="gm-btn" onclick="gmWarpTime()">TIME WARP (-24H)</button>
+        <button class="gm-btn" onclick="gmFillAll()">AUTO FILL (RANDOM)</button>
+    </div>
+    <div class="gm-row">
+        <button class="gm-btn" id="btn-god-mode" onclick="gmToggleGod()">GOD MODE: OFF</button>
+        <button class="gm-btn" onclick="gmReset()">FACTORY RESET</button>
+    </div>
+    <div style="font-size:0.7em; color:#666;">* Time Warp shifts start date to simulate next day.</div>
+</div>
+
+<div class="container">
+    <!-- HEADER -->
+    <header>
+        <div>
+            <div class="brand">MIND KERNEL <span style="font-size:0.5em; color:var(--term-orange);">v5.1</span></div>
+            <div class="text-muted">
+                <span id="stat-label">KERNEL:</span> 
+                <span id="stat-val" class="text-cyan">0</span> | <span id="stat-fail" class="text-red">0</span>
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div class="lang-switch" onclick="toggleLang()" id="lang-display">CN</div>
+            <div style="margin-top:5px;">
+                <span class="text-muted" style="cursor:pointer; text-decoration:underline;" onclick="exportData()">SAVE</span>
+                <span class="text-muted">/</span>
+                <span class="text-muted" style="cursor:pointer; text-decoration:underline;" onclick="triggerImport()">LOAD</span>
+                <input type="file" id="file-import" style="display:none" onchange="importData(this)">
+            </div>
+        </div>
+    </header>
+
+    <!-- LAB (MAIN) -->
+    <div id="lab" class="section active">
+        <h2 data-i18n="title_active">>> ACTIVE PROTOCOLS</h2>
+        <div id="active-list"></div>
+        <div id="empty-state" class="hidden" style="text-align:center; margin-top:60px; color:#444;">
+            <div style="font-size:3em; opacity:0.3;">[ NULL ]</div>
+            <br>
+            <span data-i18n="empty_lab_1">NO PROCESS RUNNING</span><br>
+            <button class="btn btn-small btn-ghost" style="margin-top:20px;" onclick="switchTab('deconstruct', document.querySelectorAll('.nav-btn')[0])" data-i18n="btn_goto_dec">INITIATE NEW PROTOCOL</button>
+        </div>
+    </div>
+
+    <!-- DECONSTRUCT -->
+    <div id="deconstruct" class="section">
+        <h2 data-i18n="title_new">>> COGNITIVE DECONSTRUCTOR</h2>
+        <div class="input-group"><label class="input-label" data-i18n="label_problem">1. SOURCE</label><textarea id="in-problem" class="terminal-input" rows="2"></textarea></div>
+        <div class="input-group"><label class="input-label" data-i18n="label_assumption">2. OLD ASSUMPTION</label><input id="in-assumption" class="terminal-input"></div>
+        <div class="input-group"><label class="input-label" data-i18n="label_hypothesis">3. NEW HYPOTHESIS</label><input id="in-hypothesis" class="terminal-input"></div>
+        
+        <div style="border-top: 1px dashed #333; padding-top:15px; margin-top:20px;">
+            <div class="text-orange" style="margin-bottom:10px; font-weight:bold;" data-i18n="subtitle_protocol">>> EXECUTION PROTOCOL</div>
+            <div class="input-group"><label class="input-label" data-i18n="label_action">DAILY ACTION</label><input id="in-action" class="terminal-input"></div>
+            <div class="input-group">
+                <label class="input-label" data-i18n="label_duration">DURATION (DAYS)</label>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn btn-small duration-btn" onclick="setDuration(3, this)">3</button>
+                    <button class="btn btn-small duration-btn active" style="background:var(--term-green); color:#000;" onclick="setDuration(7, this)">7</button>
+                    <button class="btn btn-small duration-btn" onclick="setDuration(14, this)">14</button>
+                    <button class="btn btn-small duration-btn" onclick="setDuration(21, this)">21</button>
+                </div>
+                <input type="hidden" id="in-duration" value="7">
+            </div>
+            <button class="btn" onclick="launchProtocol()" data-i18n="btn_launch">LAUNCH PROCESS</button>
+        </div>
+    </div>
+
+    <!-- KERNEL -->
+    <div id="database" class="section">
+        <h2 data-i18n="title_kernel">>> KERNEL DATABASE</h2>
+        
+        <div class="kernel-tabs">
+            <div class="k-tab active t-true" onclick="switchKernelTab('truths', this)" data-i18n="tab_truths">VERIFIED TRUTHS</div>
+            <div class="k-tab t-false" onclick="switchKernelTab('fallacies', this)" data-i18n="tab_fallacies">FALLACIES / LOGS</div>
+        </div>
+
+        <div id="truth-list"></div>
+        <div id="fallacy-list" class="hidden"></div>
+        <div id="empty-kernel" class="hidden" style="text-align:center; margin-top:40px; color:#444;"><span data-i18n="empty_kernel">Database Empty.</span></div>
+    </div>
+</div>
+
+<!-- NAV BAR -->
+<div class="nav-bar">
+    <button class="nav-btn" onclick="switchTab('deconstruct', this)" data-i18n="nav_deconstruct">DECONSTRUCT</button>
+    <button class="nav-btn active" onclick="switchTab('lab', this)" data-i18n="nav_lab">ACTION</button>
+    <button class="nav-btn" onclick="switchTab('database', this)" data-i18n="nav_kernel">KERNEL</button>
+    <button class="nav-btn text-red" onclick="toggleGM()">[GM]</button>
+</div>
+
+<script>
+// --- CONFIG & LOCALE ---
+const LANG = {
+    cn: {
+        title_active: ">> 执行中的协议", empty_lab_1: "系统空闲 - 无运行中的进程", btn_goto_dec: "开始新的实验",
+        title_new: ">> 认知解构器",
+        label_problem: "1. 焦虑源 / 困境 (SOURCE)", in_prob_ph: "例：一想到要在公众面前说话就心跳加速...",
+        label_assumption: "2. 潜意识假设 (OLD)", in_ass_ph: "我认为：大家肯定会嘲笑我，我必须完美...",
+        label_hypothesis: "3. 新的假设 (NEW)", in_hyp_ph: "或许：大家只关注内容，讲错了也没人会在意...",
+        subtitle_protocol: ">> 验证协议 (PROTOCOL)",
+        label_action: "每日具体行动", in_act_ph: "例：每天在群里发一段60秒的语音...",
+        label_duration: "测试周期 (天)", btn_launch: "启动协议",
+        title_kernel: ">> 内核数据库",
+        tab_truths: "已验证真理", tab_fallacies: "伪证 / 避坑指南",
+        empty_kernel: "暂无数据。", 
+        nav_deconstruct: "解构", nav_lab: "行动", nav_kernel: "内核",
+        // Dynamic
+        card_h: "假设:", card_action: "行动:",
+        btn_verify: "验证成功 [归档为真理]", btn_discard: "验证失败 [归档为伪证]",
+        btn_abort: "终止实验", prompt_abort: "请输入终止原因 (将存入伪证库)：",
+        toast_launch: "> 协议已编译上线。", toast_inject: "> 数据注入完成。", toast_patch: "> 补录完成。",
+        modal_title_today: "今日打卡", modal_title_patch: "补录数据 - 第 ", modal_title_edit: "修改记录 - 第 ",
+        ph_note: "备注：当时的感受、遇到的阻力..."
+    },
+    en: {
+        title_active: ">> ACTIVE PROTOCOLS", empty_lab_1: "SYSTEM IDLE", btn_goto_dec: "INITIATE PROTOCOL",
+        title_new: ">> COGNITIVE DECONSTRUCTOR",
+        label_problem: "1. SOURCE (PROBLEM)", in_prob_ph: "e.g., Anxiety when public speaking...",
+        label_assumption: "2. OLD ASSUMPTION", in_ass_ph: "I believe: I must be perfect or they will laugh...",
+        label_hypothesis: "3. NEW HYPOTHESIS", in_hyp_ph: "Maybe: People only care about content, mistakes represent authenticity...",
+        subtitle_protocol: ">> PROTOCOL",
+        label_action: "DAILY ACTION", in_act_ph: "e.g., Send a 60s voice msg to group daily...",
+        label_duration: "DURATION (DAYS)", btn_launch: "LAUNCH PROCESS",
+        title_kernel: ">> KERNEL DATABASE",
+        tab_truths: "VERIFIED TRUTHS", tab_fallacies: "FALLACIES / LOGS",
+        empty_kernel: "Database Empty.", 
+        nav_deconstruct: "DECONSTRUCT", nav_lab: "ACTION", nav_kernel: "KERNEL",
+        card_h: "H:", card_action: "Action:",
+        btn_verify: "VERIFY [TRUE]", btn_discard: "DISCARD [FALSE]",
+        btn_abort: "ABORT", prompt_abort: "Reason for termination:",
+        toast_launch: "> PROTOCOL ONLINE.", toast_inject: "> DATA INJECTED.", toast_patch: "> PATCH COMPLETE.",
+        modal_title_today: "TODAY'S LOG", modal_title_patch: "PATCHING - DAY ", modal_title_edit: "EDIT LOG - DAY ",
+        ph_note: "Notes: How did it feel? Resistance level?"
+    }
+};
+
+const DB_KEY = 'mind_kernel_v5_1_test';
+let sys = { experiments: [], truths: [], fallacies: [] };
+let curLang = 'cn';
+let gmGodMode = false;
+let modalState = { expId: null, dayIdx: null };
+
+window.onload = () => {
+    const saved = localStorage.getItem(DB_KEY);
+    if(saved) {
+        try { sys = JSON.parse(saved); } catch(e) { console.error("Data corrupted"); }
+    }
+    if(!sys.fallacies) sys.fallacies = []; // Migration safety
+    
+    updateLangUI();
+    renderAll();
+};
+
+const save = () => { localStorage.setItem(DB_KEY, JSON.stringify(sys)); updateStats(); };
+const t = (k) => LANG[curLang][k] || k;
+const notify = (msg) => {
+    const el = document.getElementById('toast');
+    el.innerText = msg; el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2500);
+};
+
+const toggleLang = () => {
+    curLang = curLang === 'cn' ? 'en' : 'cn';
+    updateLangUI(); renderAll();
+};
+
+const updateLangUI = () => {
+    document.getElementById('lang-display').innerText = curLang.toUpperCase();
+    document.querySelectorAll('[data-i18n]').forEach(el => el.innerText = t(el.getAttribute('data-i18n')));
+    // Update Placeholders
+    document.getElementById('in-problem').placeholder = t('in_prob_ph');
+    document.getElementById('in-assumption').placeholder = t('in_ass_ph');
+    document.getElementById('in-hypothesis').placeholder = t('in_hyp_ph');
+    document.getElementById('in-action').placeholder = t('in_act_ph');
+    document.getElementById('m-note').placeholder = t('ph_note');
+};
+
+const switchTab = (id, btn) => {
+    document.querySelectorAll('.section').forEach(e => e.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(e => e.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if(btn) btn.classList.add('active');
+};
+
+const setDuration = (d, btn) => {
+    document.getElementById('in-duration').value = d;
+    document.querySelectorAll('.duration-btn').forEach(b => { b.style.background=''; b.style.color=''; });
+    btn.style.background = 'var(--term-green)'; btn.style.color = '#000';
+};
+
+// --- CORE LOGIC ---
+
+const launchProtocol = () => {
+    const p = document.getElementById('in-problem').value.trim();
+    const h = document.getElementById('in-hypothesis').value.trim();
+    const a = document.getElementById('in-action').value.trim();
+    const d = parseInt(document.getElementById('in-duration').value);
+    
+    if(!p || !h || !a) return notify(">> ERROR: MISSING DATA");
+
+    sys.experiments.unshift({
+        id: Date.now(), startTs: Date.now(), 
+        problem: p, hypothesis: h, action: a, duration: d,
+        logs: [], status: 'ACTIVE'
+    });
+    save();
+    notify(t('toast_launch'));
+    switchTab('lab', document.querySelectorAll('.nav-btn')[1]);
+    renderLab();
+    
+    // Clear
+    document.getElementById('in-problem').value='';
+    document.getElementById('in-hypothesis').value='';
+    document.getElementById('in-action').value='';
+};
+
+// --- RENDER LAB GRID ---
+const renderLab = () => {
+    const c = document.getElementById('active-list');
+    c.innerHTML = '';
+    const active = sys.experiments.filter(e => e.status === 'ACTIVE');
+    
+    if(active.length === 0) {
+        document.getElementById('empty-state').classList.remove('hidden');
+        return;
+    }
+    document.getElementById('empty-state').classList.add('hidden');
+
+    active.forEach(exp => {
+        const now = new Date();
+        const start = new Date(exp.startTs);
+        // Calculate how many days have passed since start (0 = first day)
+        const dayDiff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+        
+        let grid = '<div class="bit-grid">';
+        let logsMap = {};
+        exp.logs.forEach(l => logsMap[l.dayIdx] = l);
+
+        for(let i=0; i<exp.duration; i++) {
+            let content = i+1;
+            let cls = 'bit';
+            let onclick = '';
+            
+            // Log exists?
+            if(logsMap[i]) {
+                cls += ' done s' + logsMap[i].score;
+                onclick = `openModal(${exp.id}, ${i})`; // Can edit
+            } else {
+                // No Log
+                if (i <= dayDiff) {
+                    if(i === dayDiff) {
+                         cls += ' today-empty'; // Active Day
+                         onclick = `openModal(${exp.id}, ${i})`;
+                    } else {
+                         cls += ' missed'; // Past Day (Patchable)
+                         content = '!';
+                         onclick = `openModal(${exp.id}, ${i})`;
+                    }
+                } else {
+                    // Future
+                    cls += ' future';
+                    content = '.';
+                    if(gmGodMode) onclick = `openModal(${exp.id}, ${i})`; // God mode accesses future
+                }
+            }
+            grid += `<div class="${cls}" onclick="${onclick}">${content}</div>`;
+        }
+        grid += '</div>';
+
+        const isFull = exp.logs.length >= exp.duration;
+        let footer = '';
+        
+        if(isFull) {
+            footer = `
+            <div style="background:rgba(51,255,51,0.1); padding:12px; border:1px solid var(--term-green); margin-top:10px;">
+                <div class="text-orange" style="font-weight:bold; margin-bottom:5px;">>> PROTOCOL COMPLETE</div>
+                <div class="text-muted" style="margin-bottom:10px;">Does the data support H?</div>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn" style="margin:0" onclick="finalize(${exp.id}, true)">${t('btn_verify')}</button>
+                    <button class="btn btn-danger" style="margin:0" onclick="finalize(${exp.id}, false)">${t('btn_discard')}</button>
+                </div>
+            </div>`;
+        } else {
+            footer = `
+            <div style="margin-top:12px; text-align:right;">
+                <span class="text-red" style="font-size:0.8em; cursor:pointer; text-decoration:underline;" onclick="abortProtocol(${exp.id})">[ ${t('btn_abort')} ]</span>
+            </div>`;
+        }
+
+        c.innerHTML += `
+            <div class="card active-exp">
+                <div class="flex-between">
+                    <span class="text-orange" style="font-weight:bold;">${t('card_h')} ${exp.hypothesis}</span>
+                    <span class="text-muted">${exp.logs.length}/${exp.duration}</span>
+                </div>
+                <div style="font-size:0.9em; color:#ccc; margin-top:8px; padding-bottom:8px; border-bottom:1px dashed #333;">${t('card_action')} ${exp.action}</div>
+                ${grid}
+                ${footer}
+            </div>`;
+    });
+};
+
+// --- MODAL LOGIC ---
+let mScore = 0;
+
+const openModal = (expId, dayIdx) => {
+    modalState = { expId, dayIdx };
+    mScore = 0;
+    document.querySelectorAll('.rate-btn').forEach(b => b.classList.remove('selected'));
+    
+    const exp = sys.experiments.find(e => e.id === expId);
+    const start = new Date(exp.startTs);
+    const now = new Date();
+    const currentDiff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    
+    // Determine Title based on state
+    let title = "";
+    const existingLog = exp.logs.find(l => l.dayIdx === dayIdx);
+    
+    if(existingLog) {
+        title = t('modal_title_edit') + (dayIdx+1);
+        mSelRate(existingLog.score); // Pre-fill score
+        document.getElementById('m-note').value = existingLog.note || "";
+    } else {
+        document.getElementById('m-note').value = "";
+        if(dayIdx === currentDiff) title = t('modal_title_today');
+        else title = t('modal_title_patch') + (dayIdx+1);
+    }
+    
+    document.getElementById('modal-title').innerText = title;
+    document.getElementById('modal-action-text').innerHTML = `<span class="text-orange">${t('card_action')}</span><br>${exp.action}`;
+    document.getElementById('input-modal').classList.add('open');
+};
+
+const closeModal = () => document.getElementById('input-modal').classList.remove('open');
+
+const mSelRate = (val) => {
+    mScore = val;
+    document.querySelectorAll('.rate-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelector(`.rate-btn[data-val="${val}"]`).classList.add('selected');
+};
+
+const submitLog = () => {
+    if(mScore === 0) return notify(">> ERROR: SCORE REQUIRED");
+    const note = document.getElementById('m-note').value.trim();
+    const exp = sys.experiments.find(e => e.id === modalState.expId);
+    
+    // Remove existing log if overwrite
+    exp.logs = exp.logs.filter(l => l.dayIdx !== modalState.dayIdx);
+    
+    exp.logs.push({
+        dayIdx: modalState.dayIdx,
+        score: mScore,
+        note: note,
+        ts: Date.now()
+    });
+    
+    save();
+    closeModal();
+    notify(t('toast_inject'));
+    renderLab();
+};
+
+// --- FINALIZE & ABORT ---
+const abortProtocol = (id) => {
+    const reason = prompt(t('prompt_abort'));
+    if(reason !== null) {
+        finalize(id, false, reason || "User aborted.");
+    }
+};
+
+const finalize = (id, isTrue, reason = null) => {
+    const idx = sys.experiments.findIndex(e => e.id === id);
+    const exp = sys.experiments[idx];
+    
+    const entry = {
+        id: Date.now(),
+        problem: exp.problem,
+        hypothesis: exp.hypothesis,
+        action: exp.action,
+        date: new Date().toLocaleDateString(),
+        reason: reason,
+        stats: { avgScore: 0, logs: exp.logs } // Keep data
+    };
+
+    if(isTrue) sys.truths.unshift(entry);
+    else sys.fallacies.unshift(entry);
+
+    sys.experiments.splice(idx, 1);
+    save(); renderAll();
+};
+
+// --- KERNEL RENDER ---
+let activeKernelTab = 'truths';
+const switchKernelTab = (tab, btn) => {
+    activeKernelTab = tab;
+    document.querySelectorAll('.k-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    renderKernel();
+};
+
+const renderKernel = () => {
+    const tList = document.getElementById('truth-list');
+    const fList = document.getElementById('fallacy-list');
+    const empty = document.getElementById('empty-kernel');
+    
+    tList.innerHTML = ''; fList.innerHTML = '';
+    
+    const targetList = activeKernelTab === 'truths' ? sys.truths : sys.fallacies;
+    
+    if(activeKernelTab === 'truths') {
+        tList.classList.remove('hidden'); fList.classList.add('hidden');
+    } else {
+        tList.classList.add('hidden'); fList.classList.remove('hidden');
+    }
+    
+    if(targetList.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+    
+    targetList.forEach(item => {
+        const isTruth = activeKernelTab === 'truths';
+        const cls = isTruth ? 'truth' : 'fallacy';
+        const title = isTruth ? 'VERIFIED TRUTH' : 'FALLACY / ABORTED';
+        const reasonHtml = item.reason ? `<div style="color:var(--term-red); margin-top:5px; font-size:0.9em;">>> REASON: ${item.reason}</div>` : '';
+        
+        const container = isTruth ? tList : fList;
+        container.innerHTML += `
+            <div class="card ${cls}">
+                <div class="flex-between ${isTruth?'text-cyan':'text-red'}" style="font-size:0.75em; margin-bottom:5px;">
+                    <span>${title}</span> <span>${item.date}</span>
+                </div>
+                <div style="color:#fff; font-weight:bold; margin-bottom:8px; font-size:1.1em;">${item.hypothesis}</div>
+                <div class="text-muted" style="font-size:0.9em;">SOURCE: ${item.problem}</div>
+                ${reasonHtml}
+            </div>`;
+    });
+};
+
+const renderAll = () => { renderLab(); renderKernel(); updateStats(); };
+const updateStats = () => {
+    document.getElementById('stat-val').innerText = sys.truths.length;
+    document.getElementById('stat-fail').innerText = sys.fallacies.length;
+};
+
+// --- DATA MGMT ---
+const exportData = () => {
+    const a = document.createElement('a');
+    a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(sys));
+    a.download = "mind_kernel_backup_" + new Date().toISOString().slice(0,10) + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+};
+const triggerImport = () => document.getElementById('file-import').click();
+const importData = (input) => {
+    const f = input.files[0];
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = (e) => {
+        try { sys = JSON.parse(e.target.result); save(); renderAll(); notify(">> DATA LOADED"); }
+        catch(err) { notify(">> FILE ERROR"); }
+    };
+    r.readAsText(f);
+};
+
+// --- GM FUNCTIONS ---
+const toggleGM = () => document.getElementById('gm-console').classList.toggle('open');
+
+const gmWarpTime = () => {
+    // Shift start time back 24 hours for all active experiments
+    let count = 0;
+    sys.experiments.forEach(e => {
+        if(e.status === 'ACTIVE') {
+            e.startTs -= 86400000;
+            count++;
+        }
+    });
+    if(count > 0) { save(); renderLab(); notify(`>> TIME WARP: ${count} PROCESSES AGED.`); }
+    else notify(">> NO ACTIVE PROCESS.");
+};
+
+const gmToggleGod = () => {
+    gmGodMode = !gmGodMode;
+    const btn = document.getElementById('btn-god-mode');
+    if(gmGodMode) {
+        btn.innerText = "GOD MODE: ON";
+        btn.classList.add('active');
+        notify(">> GOD MODE ENABLED");
+    } else {
+        btn.innerText = "GOD MODE: OFF";
+        btn.classList.remove('active');
+        notify(">> GOD MODE DISABLED");
+    }
+    renderLab();
+};
+
+const gmFillAll = () => {
+    sys.experiments.forEach(e => {
+        if(e.status === 'ACTIVE') {
+            for(let i=0; i<e.duration; i++) {
+                if(!e.logs.find(l=>l.dayIdx===i)) {
+                    e.logs.push({
+                        dayIdx:i, score: Math.floor(Math.random()*3)+3, 
+                        note:'[GM_AUTO]', ts: Date.now()
+                    });
+                }
+            }
+        }
+    });
+    save(); renderLab(); notify(">> AUTO FILL COMPLETE");
+};
+
+const gmReset = () => {
+    if(confirm("CRITICAL: RESET ALL DATA?")) {
+        localStorage.removeItem(DB_KEY);
+        location.reload();
+    }
+};
+
+</script>
+</body>
+</html>
